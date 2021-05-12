@@ -5,18 +5,13 @@ import Dangle from "./dangle"
 
 export default class DanglingLinksView extends ItemView {
     private dangling: Dangling;
-    private lastRecomputeSecond: number;
 
 	constructor(leaf: WorkspaceLeaf) {
         super(leaf);
-        this.lastRecomputeSecond = 0;
         this.redraw = this.redraw.bind(this);
         this.visitDangle = this.visitDangle.bind(this);
-		this.registerEvent(this.app.workspace.on("click", this.redraw));
-		this.registerEvent(this.app.workspace.on("layout-ready", this.redraw));
-		this.registerEvent(this.app.workspace.on("file-open", this.redraw));
-		this.registerEvent(this.app.workspace.on("quick-preview", this.redraw));
-		this.registerEvent(this.app.vault.on("delete", this.redraw));
+        this.registerEvent(this.app.metadataCache.on("resolved", this.redraw));
+        this.registerEvent(this.app.metadataCache.on("changed", this.redraw));
 	}
 
     getViewType(): string {
@@ -44,12 +39,13 @@ export default class DanglingLinksView extends ItemView {
         if (file instanceof TFile)
         {
             let leaf:WorkspaceLeaf = this.app.workspace.getUnpinnedLeaf();
-            leaf.openFile(file);
-            if (leaf.view instanceof MarkdownView)
-            {
-                leaf.view.sourceMode.cmEditor.setCursor(dangle.line, dangle.col,
-                                                        {scroll: true})
-            }
+            leaf.openFile(file).then(() => {
+                if (leaf.view instanceof MarkdownView)
+                {
+                    this.app.workspace.setActiveLeaf(leaf, true, true);
+                    leaf.view.editor.setCursor(dangle.line, dangle.col);                                                  
+                }
+            });
         }
     }
 
@@ -103,10 +99,7 @@ export default class DanglingLinksView extends ItemView {
     }
 
 	public async redraw(): Promise<void> {
-		if (this.dangling && this.lastRecomputeSecond < this.getSecond()) {
-          let filesWithDangles = this.getDanglingLinks();
-          this.dangling.$set({ filesWithDangles });
-          this.lastRecomputeSecond = this.getSecond();
-		}
+        let filesWithDangles = this.getDanglingLinks();
+        this.dangling.$set({ filesWithDangles });
 	  }
 }
